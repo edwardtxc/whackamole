@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <link rel="icon" href="whackamole.png" type="image/icon type">
+        <title>Whack-a-Mole</title>
+        <style>
+            /* CSS Styling */
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f0f8ff;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 20px;
+            }
+            h1 {
+                color: #4CAF50;
+                text-align: center;
+                font-size: 3em;
+            }
+            #game-board {
+                display: grid;
+                grid-template-columns: repeat(3, 100px);
+                gap: 10px;
+                margin: 20px;
+                position: relative;
+            }
+            .hole {
+                width: 100px;
+                height: 100px;
+                background-color: #ccc;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                font-size: 24px;
+                transition: all 0.3s ease-in-out;
+            }
+            .hole:hover {
+                background-color: #bbb;
+            }
+            .mole {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                animation: popUp 0.6s ease-in-out forwards;
+            }
+            .bonus-mole {
+                background-color: #ff6347; /* Tomato color for bonus mole */
+                animation: popUp 0.6s ease-in-out forwards;
+            }
+            @keyframes popUp {
+                0% {
+                    transform: scale(0);
+                    opacity: 0;
+                }
+                50% {
+                    transform: scale(1.2);
+                    opacity: 1;
+                }
+                100% {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+            #status, #score, #timer {
+                font-size: 1.5em;
+                margin: 10px;
+                color: #555;
+                font-weight: bold;
+            }
+            #timer {
+                color: #e74c3c;
+            }
+            #start-btn {
+                background-color: #4CAF50;
+                color: white;
+                font-size: 1.2em;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                transition: background-color 0.3s ease;
+            }
+            #start-btn:hover {
+                background-color: #45a049;
+            }
+
+            /* Game Over Screen Styles */
+            .game-over {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                display: none;
+                background: linear-gradient(to top left, #e74c3c, #f39c12, #8e44ad);
+                color: white;
+                text-align: center;
+                padding-top: 20%;
+                animation: fadeIn 1s ease-out;
+            }
+
+            .game-over h2 {
+                font-size: 3em;
+                margin-bottom: 20px;
+            }
+
+            .game-over p {
+                font-size: 1.5em;
+                margin-bottom: 30px;
+            }
+
+            .game-over button {
+                background-color: #3498db;
+                color: white;
+                padding: 15px 30px;
+                font-size: 1.2em;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                transition: background-color 0.3s;
+            }
+
+            .game-over button:hover {
+                background-color: #2980b9;
+            }
+
+            @keyframes fadeIn {
+                0% {
+                    opacity: 0;
+                }
+                100% {
+                    opacity: 1;
+                }
+            }
+
+            /* Confetti Styles */
+            .confetti {
+                position: absolute;
+                top: -10px;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: 9999;
+            }
+
+            .confetti-piece {
+                position: absolute;
+                width: 10px;
+                height: 10px;
+                background-color: #f39c12;
+                animation: confettiFall 3s linear infinite;
+            }
+
+            @keyframes confettiFall {
+                0% {
+                    transform: translateY(0) rotate(0deg);
+                }
+                100% {
+                    transform: translateY(500px) rotate(360deg);
+                }
+            }
+
+        </style>
+    </head>
+    <body>
+        <h1>Whack-a-Mole</h1>
+        <div>
+            <button id="start-btn" onclick="startGame()">Start New Game</button>
+            <div id="status">Click the moles to score points!</div>
+            <p id="timer">Time: 30s</p>
+            <div id="score">Score: 0</div>
+        </div>
+        <div id="game-board">
+            <!-- 9 holes in a 3x3 grid -->
+            <div class="hole"></div>
+            <div class="hole"></div>
+            <div class="hole"></div>
+            <div class="hole"></div>
+            <div class="hole"></div>
+            <div class="hole"></div>
+            <div class="hole"></div>
+            <div class="hole"></div>
+            <div class="hole"></div>
+        </div>
+
+        <div id="game-over" class="game-over">
+            <h2>Game Over!</h2>
+            <p>Final Score: <span id="final-score"></span></p>
+            <button onclick="playAgain()">Play Again</button>
+        </div>
+
+        <div id="confetti" class="confetti"></div>
+
+        <script>
+            // JavaScript Game Logic
+            let score = 0;
+            let timeLeft = 30;
+            let gameInterval = null;
+            let moleTimeout = null;
+            let gameOverDisplayed = false;
+            let moleSpeed = 1000; // Initial mole speed
+
+            // Sound effects
+            const moleSound = new Audio('https://www.soundjay.com/button/beep-07.wav');  // Replace with your own sound file URL
+            const bonusSound = new Audio('https://www.soundjay.com/button/beep-09.wav');  // Replace with your own sound file URL
+            const gameOverSound = new Audio('https://www.soundjay.com/button/beep-08.wav');  // Replace with your own sound file URL
+
+            function startGame() {
+                // Reset score, timer, and display elements
+                score = 0;
+                timeLeft = 30;
+                moleSpeed = 1000; // Reset mole speed
+                document.getElementById('score').innerText = `Score: ${score}`;
+                document.getElementById('timer').innerText = `Time: ${timeLeft}s`;
+                document.getElementById('status').innerText = "Click the moles to score points!";
+
+                // Clear any existing intervals and timeouts
+                clearInterval(gameInterval);
+                clearTimeout(moleTimeout);
+
+                // Hide game over screen and stop any confetti
+                document.getElementById('game-over').style.display = 'none';
+                document.getElementById('confetti').innerHTML = ''; // Clear confetti
+
+                // Reset all holes and remove click handlers
+                const holes = document.querySelectorAll('.hole');
+                holes.forEach(hole => {
+                    hole.classList.remove('mole');
+                    hole.classList.remove('bonus-mole');
+                    hole.classList.remove('highlight');
+                    hole.onclick = null;
+                });
+
+                // Start the countdown and display mole
+                gameInterval = setInterval(countdown, 1000);
+                showMole();
+            }
+
+            function countdown() {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    document.getElementById('timer').innerText = `Time: ${timeLeft}s`;
+                } else {
+                    // End game when time runs out
+                    clearInterval(gameInterval);
+                    clearTimeout(moleTimeout);
+                    document.getElementById('status').innerText = `Game Over! Final Score: ${score}`;
+                    document.getElementById('final-score').innerText = score;
+                    document.getElementById('game-over').style.display = 'block';
+                    gameOverSound.play(); // Play game over sound
+                    triggerConfetti(); // Trigger confetti animation
+
+                    // Remove any remaining moles
+                    const holes = document.querySelectorAll('.hole');
+                    holes.forEach(hole => hole.classList.remove('mole', 'bonus-mole'));
+                }
+            }
+
+            function showMole() {
+                // Clear previous timeout to prevent multiple moles
+                clearTimeout(moleTimeout);
+
+                // Reset all holes
+                const holes = document.querySelectorAll('.hole');
+                holes.forEach(hole => {
+                    hole.classList.remove('mole', 'bonus-mole');
+                    hole.classList.remove('highlight');
+                    hole.onclick = null;
+                });
+
+                // Only show new mole if time hasn't run out
+                if (timeLeft > 0) {
+                    // Pick a random hole and set it as a mole
+                    const randomHole = holes[Math.floor(Math.random() * holes.length)];
+                    randomHole.classList.add(Math.random() > 0.7 ? 'bonus-mole' : 'mole');
+
+                    // Assign click action
+                    randomHole.onclick = function() {
+                        if (randomHole.classList.contains('mole')) {
+                            score += 10;
+                            moleSound.play();
+                        } else if (randomHole.classList.contains('bonus-mole')) {
+                            score += 20;
+                            bonusSound.play();
+                        }
+                        document.getElementById('score').innerText = `Score: ${score}`;
+                        randomHole.classList.remove('mole', 'bonus-mole');
+                    };
+
+                    // Show the mole for a random duration
+                    moleTimeout = setTimeout(showMole, moleSpeed);
+                }
+            }
+
+            function triggerConfetti() {
+                const confetti = document.getElementById('confetti');
+                for (let i = 0; i < 100; i++) {
+                    const piece = document.createElement('div');
+                    piece.classList.add('confetti-piece');
+                    piece.style.left = Math.random() * 100 + 'vw';
+                    piece.style.animationDuration = (Math.random() * 2 + 3) + 's';
+                    piece.style.animationDelay = (Math.random() * 2) + 's';
+                    confetti.appendChild(piece);
+                }
+            }
+
+            function playAgain() {
+                document.getElementById('game-over').style.display = 'none';
+                startGame();
+            }
+        </script>
+    </body>
+</html>
